@@ -1,10 +1,10 @@
-2ed3641502894ea3e5fbfe4cb36496fc *DESCRIPTION
+f21a4de4e9af4eb622d7cd18fe63474b *DESCRIPTION
 a28284023ffcd7ac9558601f10323173 *LICENSE
 524b990911e91f16dd3267dd19adc6ed *NAMESPACE
 3c71a230835ed9c0a067df9fdf651b95 *NEWS.md
 3810f95ac185f570dc7c299fe9910635 *R/did_multiplegt_bootstrap.R
 2c1f80ff99313c25458901e86d64e040 *R/did_multiplegt_by_path.R
-2f3409a56a23d4de5b968ca01c71e580 *R/did_multiplegt_dyn.R
+8028ece3edae5682dd460bdd44541f02 *R/did_multiplegt_dyn.R
 29c15ad9a61198d79446119129c2b790 *R/did_multiplegt_dyn_by_check.R
 42fc7d74acce7b9a96e3c2f0442c6955 *R/did_multiplegt_dyn_core.R
 ca590cb908c3aecca1be2c7635aeaee9 *R/did_multiplegt_dyn_design.R
