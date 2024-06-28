@@ -1,4 +1,4 @@
-62accb2d0b5b42dafb1676b8f3c0096a *DESCRIPTION
+0ec5936e154087329f246d00f9dd65c1 *DESCRIPTION
 a28284023ffcd7ac9558601f10323173 *LICENSE
 524b990911e91f16dd3267dd19adc6ed *NAMESPACE
 3c71a230835ed9c0a067df9fdf651b95 *NEWS.md
@@ -11,7 +11,7 @@ ca590cb908c3aecca1be2c7635aeaee9 *R/did_multiplegt_dyn_design.R
 b1134153c0793c674f902a405ddeea46 *R/did_multiplegt_dyn_dfs.R
 c26bc537cabf7ee57db35e56cbd03936 *R/did_multiplegt_dyn_graph.R
 bcd753346c22e6149742112442ae7ed7 *R/did_multiplegt_dyn_normweights.R
-e6ebcc8812f4d224259682a61fea0abc *R/did_multiplegt_main.R
+6dd436a2035def7717efb9618e0fc519 *R/did_multiplegt_main.R
 f1733ac7f7f88b214d3d1c344f4c00a9 *R/did_save_sample.R
 7478d489bec70fc17083b9fcef5dc118 *R/joint_trends.R
 5eb395635c2245324f4fab5bd69840a9 *R/print.R

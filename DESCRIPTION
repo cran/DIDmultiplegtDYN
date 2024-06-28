@@ -1,7 +1,7 @@
 Package: DIDmultiplegtDYN
 Title: Estimation in Difference-in-Difference Designs with Multiple
         Groups and Periods
-Version: 1.0.12
+Version: 1.0.13
 Authors@R: 
     c(person("Diego", "Ciccia", role = c("aut", "cre"), email = "diego.ciccia@sciencespo.fr"),
 	person("Felix", "Knau", role = "aut", email = "felix.knau@sciencespo.fr"),
@@ -21,6 +21,6 @@ Imports: data.table, dplyr, ggplot2, magrittr, matlib, plm, rlang,
         xlsx, stats, car, lmtest, sandwich, haven, cowplot, rnames
 RoxygenNote: 7.2.3
 NeedsCompilation: no
-Packaged: 2024-06-20 13:06:56 UTC; 39380
+Packaged: 2024-06-28 07:39:32 UTC; 39380
 Repository: CRAN
-Date/Publication: 2024-06-20 13:50:01 UTC
+Date/Publication: 2024-06-28 14:40:32 UTC
