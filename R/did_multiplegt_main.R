@@ -1364,7 +1364,7 @@ suppressWarnings({
   if (l_placebo_XX != 0) {
     for (i in 1:l_placebo_XX) {
       if ((switchers == "" & (get(paste0("N1_placebo_",i,"_XX_new")) != 0 | get(paste0("N0_placebo_",i,"_XX_new")) != 0)) | (switchers == "out" & get(paste0("N0_placebo_",i,"_XX_new")) != 0 ) | (switchers == "in" & get(paste0("N1_placebo_",i,"_XX_new")) != 0 )) {
-          
+
           df[paste0("U_Gg_var_glob_pl_",i,"_XX")] <- df[[paste0("U_Gg_var_pl_",i,"_in_XX")]] * (get(paste0("N1_placebo_",i,"_XX_new")) / (get(paste0("N1_placebo_",i,"_XX_new")) + get(paste0("N0_placebo_",i,"_XX_new")))) + df[[paste0("U_Gg_var_pl_",i,"_out_XX")]] * (get(paste0("N0_placebo_",i,"_XX_new")) / (get(paste0("N1_placebo_",i,"_XX_new")) + get(paste0("N0_placebo_",i,"_XX_new"))))
 
           if (is.null(cluster)) {
@@ -1457,6 +1457,76 @@ suppressWarnings({
 if (!is.null(cluster)) {
   df$first_obs_by_gp_XX <- df$first_obs_by_clust_XX
 }
+
+###### Performing a test to see whether all effects are jointly equal to 0
+all_Ns_not_zero <- NA
+all_delta_not_zero <- NA
+p_jointeffects <- NULL
+## Test can only be run when at least two effects requested:
+if (l_XX != 0 & l_XX > 1) {
+	## If test is feasible, initalize scalar at 0
+  all_Ns_not_zero <- 0 
+  all_delta_not_zero <- 0 
+
+	## Count the number of estimated effects included in the test
+  for (i in 1:l_XX) {
+    if ( (switchers == "" & (get(paste0("N1_",i,"_XX_new"))!= 0 | get(paste0("N0_",i,"_XX_new"))!= 0 )) | (switchers == "out" & get(paste0("N0_",i,"_XX_new")) != 0) | (switchers == "in" & get(paste0("N1_",i,"_XX_new")) != 0) ) {
+      all_Ns_not_zero <- all_Ns_not_zero + 1
+    }
+
+    if (isTRUE(normalized)) {
+      if (get(paste0("delta_D_",i,"_global_XX")) != 0 & !is.na(get(paste0("delta_D_",i,"_global_XX")))) {
+        all_delta_not_zero <- all_delta_not_zero + 1
+      }
+    }
+  }
+
+	## Test can only be run when all requested effects could be computed:
+  if ((all_Ns_not_zero == l_XX & isFALSE(normalized)) | (isTRUE(normalized) & all_Ns_not_zero == l_XX & all_delta_not_zero == l_XX)) {
+
+	  ## Creating a vector with all dynamic effect estimates
+    didmgt_Effects <- matrix(0, nrow = l_XX, ncol = 1)
+
+	  ## Creating a matrix where the variances and the covariances of the effects will be stored.
+    didmgt_Var_Effects <- matrix(0, nrow = l_XX, ncol = l_XX)
+
+	  ## Fill those matrices
+    for (i in 1:l_XX) {
+      didmgt_Effects[i,1] <- get(paste0("DID_",i,"_XX"))
+      didmgt_Var_Effects[i,i] <- get(paste0("se_",i,"_XX"))^2
+
+      if (i < l_XX) {
+        for (j in (i+1):l_XX) {
+			    ## Create variables necessary to compute the covariances
+          if (normalized == FALSE) {
+            df[[paste0("U_Gg_var_",i,"_",j,"_XX")]] <- df[[paste0("U_Gg_var_glob_",i,"_XX")]] +  df[[paste0("U_Gg_var_glob_",j,"_XX")]] 
+          } else {
+            df[[paste0("U_Gg_var_",i,"_",j,"_XX")]] <- df[[paste0("U_Gg_var_glob_",i,"_XX")]] / get(paste0("delta_D_",i,"_global_XX")) +  df[[paste0("U_Gg_var_glob_",j,"_XX")]] / get(paste0("delta_D_",j,"_global_XX"))
+          }
+
+			    ## Estimate the covariances
+          df[[paste0("U_Gg_var_",i,"_",j,"_2_XX")]] <- df[[paste0("U_Gg_var_",i,"_",j,"_XX")]]^2 * df$first_obs_by_gp_XX
+          assign(paste0("var_sum_",i,"_",j,"_XX"), sum( df[[paste0("U_Gg_var_",i,"_",j,"_2_XX")]], na.rm = TRUE) / G_XX^2)
+          assign(paste0("cov_",i,"_",j,"_XX"), (get(paste0("var_sum_",i,"_",j,"_XX")) - get(paste0("se_",i,"_XX"))^2 - get(paste0("se_",j,"_XX"))^2)/2) 
+
+			    ## Store the results
+          didmgt_Var_Effects[i,j] <- get(paste0("cov_",i,"_",j,"_XX"))
+          didmgt_Var_Effects[j,i] <- get(paste0("cov_",i,"_",j,"_XX"))
+        }
+      }
+    }
+
+	  ## Compute P-value for the F-test on joint nullity of all effects
+    didmgt_Var_Effects_inv <- Ginv(didmgt_Var_Effects)
+    didmgt_chi2effects <- t(didmgt_Effects) %*% didmgt_Var_Effects_inv  %*% didmgt_Effects
+    p_jointeffects <- 1 - pchisq(didmgt_chi2effects[1,1], df = l_XX)
+  } else {
+    p_jointeffects <- NA
+	  ## Error message if not all of the specified effects could be estimated 
+    message("Some effects could not be estimated. Therefore, the test of joint nullity of the effects could not be computed.")
+  }
+}
+
 
 ###### Performing a test to see whether all placebos are jointly equal to 0
 all_Ns_pl_not_zero <- NA
@@ -1710,17 +1780,17 @@ mat_names <-
 colnames(didmgt_vcov) <- rownames(didmgt_vcov) <- sapply(1:l_tot_XX, function(x) ifelse(x <= l_XX, paste0("Effect_",x), paste0("Placebo_",x-l_XX))) 
 for (i in 1:l_XX) {
   if (isFALSE(normalized)) {
-    df[[paste0("U_Gg_var_comb_",i,"_XX")]] <- df[[paste0("U_Gg_var_glob_",i,"_XX")]]
+    df[[paste0("U_Gg_var_comb_",i,"_XX")]] <- ifelse(is.null(df[[paste0("U_Gg_var_glob_",i,"_XX")]]), NA, df[[paste0("U_Gg_var_glob_",i,"_XX")]])
   } else {
-    df[[paste0("U_Gg_var_comb_",i,"_XX")]] <- df[[paste0("U_Gg_var_glob_",i,"_XX")]]/ get(paste0("delta_D_",i,"_global_XX"))
+    df[[paste0("U_Gg_var_comb_",i,"_XX")]] <-  ifelse(is.null(df[[paste0("U_Gg_var_glob_",i,"_XX")]]), NA, df[[paste0("U_Gg_var_glob_",i,"_XX")]]/ get(paste0("delta_D_",i,"_global_XX")))
   }
 }
 if (l_placebo_XX != 0) {
   for (i in 1:l_placebo_XX) {
     if (isFALSE(normalized)) {
-      df[[paste0("U_Gg_var_comb_",l_XX + i,"_XX")]] <- df[[paste0("U_Gg_var_glob_pl_",i,"_XX")]]
+      df[[paste0("U_Gg_var_comb_",l_XX + i,"_XX")]] <- ifelse(is.null(df[[paste0("U_Gg_var_glob_pl_",i,"_XX")]]), NA, df[[paste0("U_Gg_var_glob_pl_",i,"_XX")]])
     } else {
-      df[[paste0("U_Gg_var_comb_",l_XX + i,"_XX")]] <- df[[paste0("U_Gg_var_glob_pl_",i,"_XX")]]/get(paste0("delta_D_pl_",i,"_global_XX"))
+      df[[paste0("U_Gg_var_comb_",l_XX + i,"_XX")]] <- ifelse(is.null(df[[paste0("U_Gg_var_glob_pl_",i,"_XX")]]), NA, df[[paste0("U_Gg_var_glob_pl_",i,"_XX")]]/get(paste0("delta_D_pl_",i,"_global_XX")))
     }
   }
 }
@@ -1770,6 +1840,10 @@ did_multiplegt_dyn <- list(
   max_pl_XX,
   max_pl_gap_XX
 )
+if (!is.null(p_jointeffects)) {
+  did_multiplegt_dyn <- append(did_multiplegt_dyn, p_jointeffects)
+  out_names <- c(out_names, "p_jointeffects")  
+}
 if (isTRUE(effects_equal)) {
   did_multiplegt_dyn <- append(did_multiplegt_dyn, p_equality_effects)
   out_names <- c(out_names, "p_equality_effects")  
