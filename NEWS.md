@@ -51,3 +51,19 @@ First official R release.
 ## Changes in version 1.0.14
 
 + Added joint test on dynamic effects
+
+## Changes in version 2.0.0
+
++ Switched from dplyr to data.table (way faster by group operations)
+
+## Changes in version 2.1.0
+
++ Switched from xlsx (rJava dependent) to openxlsx (not rJava dependent)
+
+## Changes in version 2.1.1
+
++ New helpfile
+
+## Changes in version 2.1.2
+
++ New graph option and preset
