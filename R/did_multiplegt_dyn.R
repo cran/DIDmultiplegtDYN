@@ -60,7 +60,7 @@
 #' 
 #' @section Contacts:
 #' 
-#' Github repository: [chaisemartinPackages/did_multiplegt_dyn](https://github.com/chaisemartinPackages/did_multiplegt_dyn)
+#' Github repository: [chaisemartinPackages/did_multiplegt_dyn](https://github.com/Credible-Answers/did_multiplegt_dyn)
 #' 
 #' Mail: [chaisemartin.packages@gmail.com](mailto:chaisemartin.packages@gmail.com)
 #' 

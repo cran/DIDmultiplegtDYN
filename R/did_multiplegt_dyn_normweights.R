@@ -4,7 +4,7 @@
 #' @param normopt normopt
 #' @param same_switchers same_switchers
 #' @param continuous continuous
-#' @import data.table
+#' @note polars is suggested for better performance
 #' @returns A matrix with the normalized_weights option output.
 #' @noRd
 did_multiplegt_dyn_normweights <- function(
@@ -40,7 +40,11 @@ did_multiplegt_dyn_normweights <- function(
       & !is.na(df[[paste0("diff_y_",i,"_XX")]]), 
       df$N_gt_XX, NA)
 
-    df[, paste0("N_gt_",i,"_XX") := mean(get(paste0("N_gt_",i,"_temp_XX")), na.rm = TRUE), by = group_XX]
+    temp_col <- paste0("N_gt_",i,"_temp_XX")
+    target_col <- paste0("N_gt_",i,"_XX")
+    agg_temp <- aggregate(df[[temp_col]], by = list(group_XX = df$group_XX), FUN = mean, na.rm = TRUE)
+    names(agg_temp)[2] <- target_col
+    df <- merge(df, agg_temp, by = "group_XX", all.x = TRUE)
     df[[paste0("N_gt_",i,"_temp_XX")]] <- NULL
     for (k in 0:(i-1)) {
 
