@@ -25,6 +25,7 @@ did_multiplegt_dyn(
   by = NULL,
   by_path = NULL,
   predict_het = NULL,
+  predict_het_hc2bm = FALSE,
   date_first_switch = NULL,
   same_switchers = FALSE,
   same_switchers_pl = FALSE,
@@ -35,6 +36,7 @@ did_multiplegt_dyn(
   save_results = NULL,
   save_sample = FALSE,
   less_conservative_se = FALSE,
+  more_granular_demeaning = FALSE,
   bootstrap = NULL,
   dont_drop_larger_lower = FALSE,
   drop_if_d_miss_before_first_switch = FALSE,
@@ -60,7 +62,7 @@ did_multiplegt_dyn(
 
 \item{normalized_weights}{(logical, requires \code{normalized = TRUE}) the command reports the weights that normalized effect \eqn{\ell} puts on the effect of the current treatment, on the effect of the first treatment lag, etc.}
 
-\item{effects_equal}{(logical) when this option is specified and the user requests that at least two effects be estimated, the command performs an F-test that all effects are equal. When the normalized option is specified, this test can be useful to assess if the current and lagged treatments all have the same effect on the outcome or if their effects differ, see Lemma 3 of de Chaisemartin and D'Haultfoeuille (2020a).}
+\item{effects_equal}{(logical or char) when this option is specified and the user requests that at least two effects be estimated, the command performs an F-test that effects are equal. Can be TRUE (or "all") to test equality of all effects, or a string "lb, ub" to test equality of effects from lb to ub (e.g., "2, 5" tests if effects 2 to 5 are equal). When the normalized option is specified, this test can be useful to assess if the current and lagged treatments all have the same effect on the outcome or if their effects differ, see Lemma 3 of de Chaisemartin and D'Haultfoeuille (2020a).}
 
 \item{placebo}{(int) gives the number of placebo estimators to be computed. Placebos compare the outcome evolution of switchers and of their controls, before switchers' treatment changes for the first time. Under the parallel trends and no-anticipation assumptions underlying the event-study estimators computed by \code{did_multiplegt_dyn()}, the expectation of the placebos is equal to zero. Thus, placebos can be used to test those assumptions, by testing the null that all placebos are equal to zero. If the user requests that at least two placebos be estimated, the command computes the p-value of a joint test of that null hypothesis. The number of placebos requested can be at most equal to the number of time periods in the data minus 2, though most often only a smaller number of placebos can be computed. Also, the number of placebos requested cannot be larger than the number of effects requested.}
 
@@ -82,6 +84,8 @@ did_multiplegt_dyn(
 
 \item{predict_het}{(list with 2 args: char or vector of char, -1 or vector of positive integers)  when this option is specified, the command outputs tables showing whether the group-level and time-invariant variables in the char varlist predict groups' estimated event-study effects. With the second argument set to -1, with this option the command produces one table per event-study effect estimated, each displaying the coefficients from regressions of the group-level estimate of the event-study effect on the variables in the char varlist. This method to analyze heterogeneous treatment effects assumes that switchers' counterfactual outcome evolutions is uncorrelated with the variables in varlist. To placebo test this condition, the command also shows placebo regression tables, where switchers' outcome evolutions before their treatment changed is regressed on the covariates. The p-value of a test on the null hypothesis that all heterogeneity estimates are equal to zero is shown below each table. If you are only interested in predicting a subset of the event-study effects estimated, you can specify those inside an integer vector as the second argument. This option cannot be specified with \code{normalized = TRUE} and when the \code{controls} option is specified. See Section 1.5 of the Web Appendix of de Chaisemartin and D'Haultfoeuille (2024) for further details.}
 
+\item{predict_het_hc2bm}{(logical) when this option is specified together with \code{predict_het}, the command uses HC2 Bell-McCaffrey degrees of freedom adjusted standard errors for the predict_het regressions, which are more robust for small samples.}
+
 \item{date_first_switch}{(2 args: char in ("", "by_baseline_treat"), char path) the option reports the dates at which switchers experience their first treatment change, and how many groups experienced a first change at each date. The reference population are switchers for which the last event-study effect can be estimated. If "by_baseline_treat" is specified as the first argument, separate tables are displayed for each level of the period-one treatment. Results can be printed in the Stata console specifying "console" in the second argument. Alternatively, the output can be stored in an Excel file providing a valid file path in the second argument.}
 
 \item{same_switchers}{(logical) if this option is specified and the user requests that at least two effects be estimated, the command will restrict the estimation of the event-study effects to switchers for which all effects can be estimated, to avoid compositional changes.}
@@ -102,7 +106,9 @@ did_multiplegt_dyn(
 
 \item{less_conservative_se}{(logical) when groups' treatment can change multiple times, the standard errors reported by default by the command may be conservative. Then, less conservative standard errors can be obtained by specifying this option. See de Chaisemartin et al. (2024) for further details.}
 
-\item{bootstrap}{(integer) when this option is specified, bootstraped instead of analytical standard errors are reported. The number of bootstrap replications is the option's only argument. If the \code{cluster} option is also requested, the bootstrap is clustered at the level requested in the \code{cluster} option.}
+\item{more_granular_demeaning}{(logical) when this option is specified, the command uses more granular demeaning for variance estimation. This option automatically enables \code{less_conservative_se}.}
+
+\item{bootstrap}{(integer or list) when this option is specified, bootstrapped instead of analytical standard errors are reported. Can be specified as an integer (number of replications) or as a list with two elements: \code{list(reps, seed)} where reps is the number of replications and seed is the random seed for reproducibility. If the \code{cluster} option is also requested, the bootstrap is clustered at the level requested in the \code{cluster} option.}
 
 \item{dont_drop_larger_lower}{(logical) by default, the command drops all the \eqn{(g,t)} cells such that at \eqn{t}, group \eqn{g} has experienced both a strictly larger and a strictly lower treatment than its baseline treatment. de Chaisemartin and D'Haultfoeuille (2020a) recommend this procedure, if you are interested in more details you can see their Section 3.1. The option \code{dont_drop_larger_lower} allows to overwrite this procedure and keeps \eqn{(g,t)} cells such that at \eqn{t}, group \eqn{g} has experienced both a strictly larger and a strictly lower treatment than its baseline treatment in the estimation sample.}
 

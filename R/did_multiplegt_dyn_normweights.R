@@ -16,6 +16,10 @@ did_multiplegt_dyn_normweights <- function(
   ) {
     # Inherited Globals #
     df <- data$df
+    # Convert polars DataFrame to R data.frame for base R operations
+    if (inherits(df, "polars_data_frame")) {
+      df <- as.data.frame(df)
+    }
     l_XX <- data$l_XX
     for (v in names(data$delta)) {
       assign(v, data$delta[[v]])

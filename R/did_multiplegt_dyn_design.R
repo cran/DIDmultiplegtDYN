@@ -19,6 +19,10 @@ did_multiplegt_dyn_design <- function(
 
     # Inherited Globals #
     df <- data$df
+    # Convert polars DataFrame to R data.frame for base R operations
+    if (inherits(df, "polars_data_frame")) {
+      df <- as.data.frame(df)
+    }
     l_XX <- data$l_XX
     T_max_XX <- data$T_max_XX
 

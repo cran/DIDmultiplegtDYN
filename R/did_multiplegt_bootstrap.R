@@ -25,38 +25,45 @@
 #' @param less_conservative_se less_conservative_se
 #' @param continuous continuous
 #' @param bootstrap bootstrap
+#' @param bootstrap_seed bootstrap_seed
 #' @param base base
 #' @returns A list of the final results updated with the bootstrap standard errors
 #' @noRd
 did_multiplegt_bootstrap <- function(
-  df, 
-  outcome, 
-  group, 
-  time, 
-  treatment, 
-  effects, 
-  placebo, 
-  ci_level, 
-  switchers, 
-  trends_nonparam, 
-  weight, 
-  controls, 
-  dont_drop_larger_lower, 
-  drop_if_d_miss_before_first_switch, 
-  cluster, 
-  same_switchers, 
+  df,
+  outcome,
+  group,
+  time,
+  treatment,
+  effects,
+  placebo,
+  ci_level,
+  switchers,
+  trends_nonparam,
+  weight,
+  controls,
+  dont_drop_larger_lower,
+  drop_if_d_miss_before_first_switch,
+  cluster,
+  same_switchers,
   same_switchers_pl,
   only_never_switchers,
-  effects_equal, 
-  save_results, 
+  effects_equal,
+  save_results,
   normalized,
   predict_het,
   trends_lin,
   less_conservative_se,
   continuous,
-  bootstrap, 
+  bootstrap,
+  bootstrap_seed = NULL,
   base
 ){
+
+    ## Set seed if provided
+    if (!is.null(bootstrap_seed)) {
+      set.seed(bootstrap_seed)
+    }
 
     bresults_effects <- NULL
     bresults_ATE <- NULL

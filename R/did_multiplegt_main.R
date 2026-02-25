@@ -24,9 +24,12 @@
 #' @param same_switchers same_switchers
 #' @param same_switchers_pl same_switchers_pl
 #' @param effects_equal effects_equal
+#' @param effects_equal_lb effects_equal lower bound (for range specification)
+#' @param effects_equal_ub effects_equal upper bound (for range specification)
 #' @param save_results save_results
 #' @param normalized normalized
 #' @param predict_het predict_het
+#' @param predict_het_hc2bm predict_het_hc2bm
 #' @param trends_lin trends_lin
 #' @param less_conservative_se less_conservative_se
 #' @param continuous continuous
@@ -46,28 +49,31 @@
 #' @returns A list with the final estimation dataframe and other relevant matrices and scalars.
 #' @noRd 
 did_multiplegt_main <- function(
-  df, 
-  outcome, 
-  group, 
-  time, 
-  treatment, 
-  effects, 
-  placebo, 
-  ci_level, 
-  switchers, 
+  df,
+  outcome,
+  group,
+  time,
+  treatment,
+  effects,
+  placebo,
+  ci_level,
+  switchers,
   only_never_switchers,
-  trends_nonparam, 
-  weight, 
-  controls, 
-  dont_drop_larger_lower, 
-  drop_if_d_miss_before_first_switch, 
-  cluster, 
-  same_switchers, 
+  trends_nonparam,
+  weight,
+  controls,
+  dont_drop_larger_lower,
+  drop_if_d_miss_before_first_switch,
+  cluster,
+  same_switchers,
   same_switchers_pl,
-  effects_equal, 
-  save_results, 
+  effects_equal,
+  effects_equal_lb = NULL,
+  effects_equal_ub = NULL,
+  save_results,
   normalized,
   predict_het,
+  predict_het_hc2bm = FALSE,
   trends_lin,
   less_conservative_se,
   continuous,
@@ -89,6 +95,9 @@ pl <- .get_pl()
 as_polars_df <- function(x) .as_polars_df(x)
 
 suppressWarnings({
+
+  ###### Initialize warnings collector for vcov invertibility issues
+  vcov_warnings <- c()
 
   ###### 0. Pre-allocate variables that are generated via polars (to satisfy CRAN requirements)
   gr_id <- NULL
@@ -2362,9 +2371,28 @@ suppressWarnings({
       }
 
       ## Compute P-value for the F-test on joint nullity of all effects
-      didmgt_Var_Effects_inv <- MASS::ginv(didmgt_Var_Effects)
-      didmgt_chi2effects <- t(didmgt_Effects) %*% didmgt_Var_Effects_inv  %*% didmgt_Effects
-      p_jointeffects <- 1 - pchisq(didmgt_chi2effects[1,1], df = l_XX)
+      ## Check if variance matrix is invertible
+      eig_effects <- eigen(didmgt_Var_Effects, only.values = TRUE)$values
+      eig_effects_real <- Re(eig_effects[abs(Im(eig_effects)) < 1e-10])
+      eig_effects_pos <- eig_effects_real[eig_effects_real > 1e-10]
+
+      if (length(eig_effects_pos) < l_XX) {
+        ## Matrix is singular/not invertible
+        p_jointeffects <- NA
+        warn_msg <- "The F-test that all effects are equal to zero is not computed because the variance of effects is not invertible. This can for instance happen if you cluster standard errors and you have more effect estimators than clusters."
+        vcov_warnings <- c(vcov_warnings, warn_msg)
+        warning(warn_msg)
+      } else {
+        warning_eff_ratio <- max(eig_effects_pos) / min(eig_effects_pos)
+        if (warning_eff_ratio >= 1000) {
+          warn_msg <- "The F-test that all effects are equal to zero may not be reliable, because the variance of the effects is close to not being invertible (the ratio of its largest and smallest eigenvalues is larger than 1000). This can for instance happen when you compute many effects estimators, or when your effects are very strongly correlated."
+          vcov_warnings <- c(vcov_warnings, warn_msg)
+          warning(warn_msg)
+        }
+        didmgt_Var_Effects_inv <- MASS::ginv(didmgt_Var_Effects)
+        didmgt_chi2effects <- t(didmgt_Effects) %*% didmgt_Var_Effects_inv  %*% didmgt_Effects
+        p_jointeffects <- 1 - pchisq(didmgt_chi2effects[1,1], df = l_XX)
+      }
     } else {
       p_jointeffects <- NA
       ## Error message if not all of the specified effects could be estimated
@@ -2431,9 +2459,28 @@ suppressWarnings({
       }
 
       ## Compute P-value for the F-test on joint nullity of all placebos
-      didmgt_Var_Placebo_inv <- MASS::ginv(didmgt_Var_Placebo)
-      didmgt_chi2placebo <- t(didmgt_Placebo) %*% didmgt_Var_Placebo_inv  %*% didmgt_Placebo
-      p_jointplacebo <- 1 - pchisq(didmgt_chi2placebo[1,1], df = l_placebo_XX)
+      ## Check if variance matrix is invertible
+      eig_placebo <- eigen(didmgt_Var_Placebo, only.values = TRUE)$values
+      eig_placebo_real <- Re(eig_placebo[abs(Im(eig_placebo)) < 1e-10])
+      eig_placebo_pos <- eig_placebo_real[eig_placebo_real > 1e-10]
+
+      if (length(eig_placebo_pos) < l_placebo_XX) {
+        ## Matrix is singular/not invertible
+        p_jointplacebo <- NA
+        warn_msg <- "The F-test that all placebos are equal to zero is not computed because the variance of placebos is not invertible. This can for instance happen if you cluster standard errors and you have more placebo estimators than clusters."
+        vcov_warnings <- c(vcov_warnings, warn_msg)
+        warning(warn_msg)
+      } else {
+        warning_pl_ratio <- max(eig_placebo_pos) / min(eig_placebo_pos)
+        if (warning_pl_ratio >= 1000) {
+          warn_msg <- "The F-test that all placebos are equal to zero may not be reliable, because the variance of the placebos is close to not being invertible (the ratio of its largest and smallest eigenvalues is larger than 1000). This can for instance happen when you compute many placebo estimators, or when your placebos are very strongly correlated."
+          vcov_warnings <- c(vcov_warnings, warn_msg)
+          warning(warn_msg)
+        }
+        didmgt_Var_Placebo_inv <- MASS::ginv(didmgt_Var_Placebo)
+        didmgt_chi2placebo <- t(didmgt_Placebo) %*% didmgt_Var_Placebo_inv  %*% didmgt_Placebo
+        p_jointplacebo <- 1 - pchisq(didmgt_chi2placebo[1,1], df = l_placebo_XX)
+      }
     } else {
       p_jointplacebo <- NA
       ## Error message if not all of the specified placebos could be estimated
@@ -2525,8 +2572,20 @@ suppressWarnings({
           }
         }
         model <- lm(as.formula(het_reg), data = het_sample, weights = het_sample$weight_XX)
-        model_r <- matrix(coeftest(model, vcov. = vcovHC(model, type = "HC1"))[2:(length(predict_het_good)+1), 1:3], ncol = 3)
-        f_stat <- linearHypothesis(model,lhyp, vcov = vcovHC(model, type = "HC1"))[["Pr(>F)"]][2]
+        ## Use HC2 with dfadjust when predict_het_hc2bm is TRUE
+        if (isTRUE(predict_het_hc2bm)) {
+          ## Determine cluster variable for HC2 BM
+          if (!is.null(cluster)) {
+            cluster_het <- het_sample[[cluster]]
+          } else {
+            cluster_het <- het_sample$group_XX
+          }
+          het_vcov <- vcovCL(model, cluster = cluster_het, type = "HC2", cadjust = TRUE)
+        } else {
+          het_vcov <- vcovHC(model, type = "HC2")
+        }
+        model_r <- matrix(coeftest(model, vcov. = het_vcov)[2:(length(predict_het_good)+1), 1:3], ncol = 3)
+        f_stat <- linearHypothesis(model, lhyp, vcov = het_vcov)[["Pr(>F)"]][2]
         t_stat <- qt(0.975, df.residual(model))
         het_sample <- NULL
 
@@ -2611,12 +2670,24 @@ suppressWarnings({
           }
         }
         model <- lm(as.formula(het_reg), data = het_sample, weights = het_sample$weight_XX)
-        model_r <- matrix(coeftest(model, vcov. = vcovHC(model, type = "HC1"))[2:(length(predict_het_good)+1), 1:3], ncol = 3)
-        f_stat <- linearHypothesis(model,lhyp, vcov = vcovHC(model, type = "HC1"))[["Pr(>F)"]][2]
+        ## Use HC2 with dfadjust when predict_het_hc2bm is TRUE (placebo section)
+        if (isTRUE(predict_het_hc2bm)) {
+          ## Determine cluster variable for HC2 BM
+          if (!is.null(cluster)) {
+            cluster_het <- het_sample[[cluster]]
+          } else {
+            cluster_het <- het_sample$group_XX
+          }
+          het_vcov <- vcovCL(model, cluster = cluster_het, type = "HC2", cadjust = TRUE)
+        } else {
+          het_vcov <- vcovHC(model, type = "HC2")
+        }
+        model_r <- matrix(coeftest(model, vcov. = het_vcov)[2:(length(predict_het_good)+1), 1:3], ncol = 3)
+        f_stat <- linearHypothesis(model, lhyp, vcov = het_vcov)[["Pr(>F)"]][2]
         t_stat <- qt(0.975, df.residual(model))
         het_sample <- NULL
 
-        ## Output Part of the predict_het option
+        ## Output Part of the predict_het option (placebos)
         het_res <- rbind(het_res, data.frame(
           effect = matrix(-i, nrow = length(predict_het_good)),
           covariate = predict_het_good,
@@ -2638,31 +2709,47 @@ suppressWarnings({
 
   ###### Performing a test that all DID_\ell effects are equal (similar structure as test on placebos, not commented, except for the small differences with placebos)
   if (effects_equal == TRUE & l_XX > 1) {
+    ## Determine bounds for the test (default is all effects)
+    ee_lb <- ifelse(is.null(effects_equal_lb), 1, effects_equal_lb)
+    ee_ub <- ifelse(is.null(effects_equal_ub), l_XX, effects_equal_ub)
+
+    ## Validate bounds
+    if (ee_ub > l_XX) {
+      message(sprintf("Upper bound %d exceeds number of effects %d. Using %d as upper bound.", ee_ub, l_XX, l_XX))
+      ee_ub <- l_XX
+    }
+
+    ee_length <- ee_ub - ee_lb + 1
+
     all_Ns_not_zero <- 0
-    for (i in 1:l_XX) {
+    for (i in ee_lb:ee_ub) {
       if (((switchers == "" & (get(paste0("N1_",i,"_XX_new")) != 0 | get(paste0("N0_",i,"_XX_new")) != 0)) |
           (switchers == "out" & get(paste0("N0_",i,"_XX_new")) != 0) |
           (switchers == "in" & get(paste0("N1_",i,"_XX_new")) != 0))) {
         all_Ns_not_zero <- all_Ns_not_zero + 1
       }
     }
-    if (all_Ns_not_zero == l_XX) {
-      didmgt_Effects <- mat_res_XX[1:l_XX, 1]
-      didmgt_Var_Effects <- matrix(0, nrow = l_XX, ncol = l_XX)
-      didmgt_identity <- matrix(0, nrow = l_XX - 1, ncol = l_XX)
+    if (all_Ns_not_zero == ee_length) {
+      didmgt_Effects <- mat_res_XX[ee_lb:ee_ub, 1]
+      didmgt_Var_Effects <- matrix(0, nrow = ee_length, ncol = ee_length)
+      didmgt_identity <- matrix(0, nrow = ee_length - 1, ncol = ee_length)
 
-      for (i in 1:l_XX) {
+      for (i in ee_lb:ee_ub) {
+        ## Index in the submatrix (1-based within range)
+        ii <- i - ee_lb + 1
         if (((switchers == "" & (get(paste0("N1_",i,"_XX_new")) != 0 | get(paste0("N0_",i,"_XX_new")) != 0)) |
             (switchers == "out" & get(paste0("N0_",i,"_XX_new")) != 0) |
             (switchers == "in" & get(paste0("N1_",i,"_XX_new")) != 0))) {
 
-          didmgt_Var_Effects[i,i] <- get(paste0("se_", i, "_XX")) ^ 2
-          if (i < l_XX) {
-            didmgt_identity[i,i] <- 1
+          didmgt_Var_Effects[ii,ii] <- get(paste0("se_", i, "_XX")) ^ 2
+          if (ii < ee_length) {
+            didmgt_identity[ii,ii] <- 1
           }
 
-          if (i < l_XX) {
-            for (j in (i + 1):l_XX) {
+          if (i < ee_ub) {
+            for (j in (i + 1):ee_ub) {
+              ## Index in the submatrix for j
+              jj <- j - ee_lb + 1
               if (normalized == FALSE) {
                 df[[paste0("U_Gg_var_", i, "_", j,"_XX")]] <- df[[paste0("U_Gg_var_glob_", i, "_XX")]] +  df[[paste0("U_Gg_var_glob_", j, "_XX")]]
               } else {
@@ -2678,8 +2765,8 @@ suppressWarnings({
               assign(paste0("cov_",i,"_",j,"_XX"),
                     (get(paste0("var_sum_",i,"_",j,"_XX")) - get(paste0("se_",i,"_XX"))^2 - get(paste0("se_",j,"_XX"))^2)/2)
 
-              didmgt_Var_Effects[i,j] <- get(paste0("cov_",i,"_",j,"_XX"))
-              didmgt_Var_Effects[j,i] <- get(paste0("cov_",i,"_",j,"_XX"))
+              didmgt_Var_Effects[ii,jj] <- get(paste0("cov_",i,"_",j,"_XX"))
+              didmgt_Var_Effects[jj,ii] <- get(paste0("cov_",i,"_",j,"_XX"))
             }
           }
 
@@ -2687,18 +2774,49 @@ suppressWarnings({
       }
 
       ## Creating a matrix of demeaned effects: null being tested = joint equality, not jointly 0
-      didmgt_D <- didmgt_identity - matrix(1/l_XX, nrow = l_XX - 1, ncol = l_XX)
+      didmgt_D <- didmgt_identity - matrix(1/ee_length, nrow = ee_length - 1, ncol = ee_length)
       didmgt_test_effects <- didmgt_D %*% didmgt_Effects
       didmgt_test_var <- didmgt_D %*% didmgt_Var_Effects %*% t(didmgt_D)
       # Enforcing symmetry
       didmgt_test_var <- (didmgt_test_var + t(didmgt_test_var)) / 2
 
-      didmgt_chi2_equal_ef <- t(didmgt_test_effects) %*% MASS::ginv(didmgt_test_var) %*% didmgt_test_effects
-      p_equality_effects <-
-        1 - pchisq(didmgt_chi2_equal_ef[1,1], df = l_XX - 1)
-      assign("p_equality_effects", p_equality_effects, inherits = TRUE)
+      ## Check if variance matrix is invertible for equality test
+      eig_equality <- eigen(didmgt_test_var, only.values = TRUE)$values
+      eig_equality_real <- Re(eig_equality[abs(Im(eig_equality)) < 1e-10])
+      eig_equality_pos <- eig_equality_real[eig_equality_real > 1e-10]
+
+      if (length(eig_equality_pos) < (ee_length - 1)) {
+        p_equality_effects <- NA
+        if (ee_lb == 1 & ee_ub == l_XX) {
+          warn_msg <- "The F-test that all effects are equal is not computed because the variance of effects is not invertible. This may be due to perfect multicollinearity among the effects. Consider reducing the number of effects estimated."
+        } else {
+          warn_msg <- sprintf("The F-test that effects %d to %d are equal is not computed because the variance of effects is not invertible. This may be due to perfect multicollinearity among the effects.", ee_lb, ee_ub)
+        }
+        vcov_warnings <- c(vcov_warnings, warn_msg)
+        warning(warn_msg)
+        assign("p_equality_effects", p_equality_effects, inherits = TRUE)
+      } else {
+        warning_eq_ratio <- max(eig_equality_pos) / min(eig_equality_pos)
+        if (warning_eq_ratio >= 1000) {
+          if (ee_lb == 1 & ee_ub == l_XX) {
+            warn_msg <- "The F-test that all effects are equal may not be reliable, because the variance of the effects is close to not being invertible (the ratio of its largest and smallest eigenvalues is larger than 1000). This may be due to strong multicollinearity among the effects. Consider reducing the number of effects estimated."
+          } else {
+            warn_msg <- sprintf("The F-test that effects %d to %d are equal may not be reliable, because the variance of the effects is close to not being invertible (the ratio of its largest and smallest eigenvalues is larger than 1000).", ee_lb, ee_ub)
+          }
+          vcov_warnings <- c(vcov_warnings, warn_msg)
+          warning(warn_msg)
+        }
+        didmgt_chi2_equal_ef <- t(didmgt_test_effects) %*% MASS::ginv(didmgt_test_var) %*% didmgt_test_effects
+        p_equality_effects <-
+          1 - pchisq(didmgt_chi2_equal_ef[1,1], df = ee_length - 1)
+        assign("p_equality_effects", p_equality_effects, inherits = TRUE)
+      }
     } else {
-      message("Some effects could not be estimated. Therefore, the test of equality of effects could not be computed.")
+      if (ee_lb == 1 & ee_ub == l_XX) {
+        message("Some effects could not be estimated. Therefore, the test of equality of effects could not be computed.")
+      } else {
+        message(sprintf("Some effects in range %d to %d could not be estimated. Therefore, the test of equality of effects could not be computed.", ee_lb, ee_ub))
+      }
     }
   }
 
@@ -2777,7 +2895,7 @@ suppressWarnings({
     did_multiplegt_dyn <- append(did_multiplegt_dyn, p_equality_effects)
     out_names <- c(out_names, "p_equality_effects")
   }
-  if (placebo != 0) {
+  if (l_placebo_XX > 0) {
     Placebo_mat <- matrix(mat_res_XX[(l_XX+2):nrow(mat_res_XX), 1:(ncol(mat_res_XX) -1)], ncol = ncol(mat_res_XX) -1, nrow = l_placebo_XX)
     rownames(Placebo_mat) <- rownames[(l_XX+2):nrow(mat_res_XX)]
     colnames(Placebo_mat) <- c("Estimate", "SE", "LB CI", "UB CI", "N", "Switchers", "N.w", "Switchers.w")
@@ -2797,6 +2915,12 @@ suppressWarnings({
       did_multiplegt_dyn <- append(did_multiplegt_dyn, list(het_res))
       out_names <- c(out_names, "predict_het")
     }
+  }
+
+  # Add vcov warnings if any were collected
+  if (length(vcov_warnings) > 0) {
+    did_multiplegt_dyn <- append(did_multiplegt_dyn, list(vcov_warnings))
+    out_names <- c(out_names, "vcov_warnings")
   }
 
   # Uncomment for debugging #
