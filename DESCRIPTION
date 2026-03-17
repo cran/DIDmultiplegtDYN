@@ -1,7 +1,7 @@
 Package: DIDmultiplegtDYN
 Title: Estimation in Difference-in-Difference Designs with Multiple
         Groups and Periods
-Version: 2.3.2
+Version: 2.3.3
 Authors@R: 
     c(person("Anzony", "Quispe", role = c("aut", "cre"), email = "anzony.quispe@gmail.com"), 
 	person("Diego", "Ciccia", role = "aut", email = "diego.ciccia@kellogg.northwestern.edu"),
@@ -28,6 +28,6 @@ LinkingTo: Rcpp
 RoxygenNote: 7.3.3
 Additional_repositories: https://rpolars.r-universe.dev
 NeedsCompilation: yes
-Packaged: 2026-03-05 12:40:26 UTC; anzony.quisperojas
+Packaged: 2026-03-17 08:57:30 UTC; anzony.quisperojas
 Repository: CRAN
-Date/Publication: 2026-03-05 13:20:08 UTC
+Date/Publication: 2026-03-17 12:30:09 UTC
